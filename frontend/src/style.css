@@ -11,6 +11,10 @@ body {
   background: #f4f7f9;
 }
 
+button {
+  font: inherit;
+}
+
 .app-shell {
   width: min(880px, calc(100% - 32px));
   margin: 0 auto;
@@ -60,7 +64,8 @@ h1 {
   font-size: 15px;
 }
 
-.panel {
+.panel,
+.recorder-panel {
   margin-top: 24px;
   padding: 18px;
   border: 1px solid #dbe3ea;
@@ -68,14 +73,133 @@ h1 {
   background: #fff;
 }
 
-.panel h2 {
+.recorder-panel {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+.record-button {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: 3px solid #0f766e;
+  background: #fff;
+  color: #0f766e;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.record-button.recording {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+
+.record-button.uploading {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.mic-icon {
+  font-size: 26px;
+}
+
+.stop-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: #ef4444;
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid #dbe3ea;
+  border-top-color: #0f766e;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.recorder-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.recorder-copy span {
+  color: #607086;
+  font-size: 14px;
+}
+
+.level-track {
+  grid-column: 1 / -1;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.level-fill {
+  height: 100%;
+  background: #0f766e;
+  transition: width 0.1s ease;
+}
+
+.result-panel h2 {
   margin-bottom: 12px;
   font-size: 18px;
 }
 
-.panel ul {
+.result-panel dl {
+  display: grid;
+  gap: 10px;
   margin: 0;
-  padding-left: 20px;
-  color: #405166;
-  line-height: 1.8;
+}
+
+.result-panel dl div {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 12px;
+}
+
+.result-panel dt {
+  color: #607086;
+}
+
+.result-panel dd {
+  margin: 0;
+  color: #172033;
+  word-break: break-all;
+}
+
+.error-toast {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(520px, calc(100% - 32px));
+  padding: 12px 16px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #991b1b;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+
+@media (max-width: 640px) {
+  .hero,
+  .recorder-panel {
+    align-items: flex-start;
+  }
+
+  .recorder-panel {
+    grid-template-columns: 1fr;
+  }
 }
