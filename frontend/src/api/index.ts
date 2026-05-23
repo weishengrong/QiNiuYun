@@ -1,5 +1,5 @@
 ﻿import axios from 'axios'
-import type { ApiResult, AudioUploadVO } from '../types'
+import type { ApiResult, AsrResponse, AudioUploadVO } from '../types'
 
 const http = axios.create({
   baseURL: '/api',
@@ -21,6 +21,16 @@ export async function uploadAudio(audio: Blob): Promise<ApiResult<AudioUploadVO>
   const form = new FormData()
   form.append('audio', audio, getAudioFileName(audio))
   const response = await http.post<ApiResult<AudioUploadVO>>('/audio/upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return response.data
+}
+
+export async function recognizeAudio(audio: Blob, engine = 'vosk'): Promise<ApiResult<AsrResponse>> {
+  const form = new FormData()
+  form.append('audio', audio, getAudioFileName(audio))
+  form.append('engine', engine)
+  const response = await http.post<ApiResult<AsrResponse>>('/asr/recognize', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
   return response.data

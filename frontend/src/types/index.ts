@@ -11,3 +11,17 @@ export interface AudioUploadVO {
   audioFormat: string
   status: string
 }
+
+export interface AsrResponse {
+  recordId: number
+  originalText: string
+  engineType: string
+  duration: number
+  confidence: number
+}
+
+export interface EngineOption {
+  label: string
+  value: string
+  mode: 'stream' | 'upload'
+}

@@ -1,16 +1,23 @@
 ﻿<script setup lang="ts">
 import { onUnmounted, ref } from 'vue'
-import { uploadAudio } from '../api'
-import type { AudioUploadVO } from '../types'
+import { recognizeAudio } from '../api'
 
 const emit = defineEmits<{
-  uploaded: [result: AudioUploadVO]
+  recognized: [text: string]
+  liveDelta: [text: string]
+  liveCompleted: [text: string]
   error: [message: string]
+}>()
+
+const props = defineProps<{
+  engine: string
+  mode: 'stream' | 'upload'
 }>()
 
 const recording = ref(false)
 const uploading = ref(false)
 const audioLevel = ref(0)
+const streamStatus = ref<'idle' | 'connecting' | 'listening' | 'speaking'>('idle')
 
 let mediaStream: MediaStream | null = null
 let audioContext: AudioContext | null = null
@@ -19,28 +26,71 @@ let processorNode: ScriptProcessorNode | null = null
 let analyser: AnalyserNode | null = null
 let animationId = 0
 let pcmChunks: Int16Array[] = []
+let streamSocket: WebSocket | null = null
+let pendingPcm: Int16Array[] = []
+let streamReady = false
+let partialText = ''
 
 async function startRecording() {
+  if (props.mode === 'stream') {
+    await startStreaming()
+    return
+  }
+  await startOfflineRecording()
+}
+
+async function startOfflineRecording() {
   try {
     pcmChunks = []
-    mediaStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-    })
-
+    mediaStream = await getMicrophoneStream()
     recording.value = true
-    await startPcmRecorder()
+    await startPcmRecorder((pcm) => pcmChunks.push(pcm))
     startAudioLevelMonitor()
   } catch (error) {
     emit('error', getMicrophoneErrorMessage(error))
   }
 }
 
-async function startPcmRecorder() {
+async function startStreaming() {
+  try {
+    resetStreamingState()
+    pendingPcm = []
+    partialText = ''
+    streamStatus.value = 'connecting'
+    mediaStream = await getMicrophoneStream()
+
+    streamSocket = new WebSocket(getStepFunWsUrl())
+    streamSocket.onopen = () => {
+      recording.value = true
+      streamStatus.value = 'listening'
+    }
+    streamSocket.onmessage = (event) => handleStreamMessage(event.data)
+    streamSocket.onerror = () => emit('error', '实时识别连接异常，请检查后端服务和 StepFun Token 配置')
+    streamSocket.onclose = () => {
+      recording.value = false
+      streamStatus.value = 'idle'
+    }
+
+    await startPcmRecorder(sendPcmChunk)
+    startAudioLevelMonitor()
+  } catch (error) {
+    stopStreaming()
+    emit('error', getMicrophoneErrorMessage(error))
+  }
+}
+
+async function getMicrophoneStream(): Promise<MediaStream> {
+  return navigator.mediaDevices.getUserMedia({
+    audio: {
+      channelCount: 1,
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    },
+  })
+}
+
+async function startPcmRecorder(onPcm: (pcm: Int16Array) => void) {
   if (!mediaStream) return
 
   audioContext = new AudioContext()
@@ -48,9 +98,10 @@ async function startPcmRecorder() {
   processorNode = audioContext.createScriptProcessor(4096, 1, 1)
 
   processorNode.onaudioprocess = (event) => {
-    if (!recording.value || !audioContext) return
+    if (!recording.value && props.mode !== 'stream') return
+    if (!audioContext) return
     const input = event.inputBuffer.getChannelData(0)
-    pcmChunks.push(resampleTo16kPcm(input, audioContext.sampleRate))
+    onPcm(resampleTo16kPcm(input, audioContext.sampleRate))
   }
 
   sourceNode.connect(processorNode)
@@ -58,6 +109,11 @@ async function startPcmRecorder() {
 }
 
 function stopRecording() {
+  if (props.mode === 'stream') {
+    stopStreaming()
+    return
+  }
+
   recording.value = false
   stopPcmRecorder()
   stopAudioLevelMonitor()
@@ -66,8 +122,27 @@ function stopRecording() {
   if (pcmChunks.length > 0) {
     const wavBlob = pcmChunksToWavBlob(pcmChunks)
     pcmChunks = []
-    doUpload(wavBlob)
+    doRecognize(wavBlob)
   }
+}
+
+function stopStreaming() {
+  recording.value = false
+  streamStatus.value = 'idle'
+  streamReady = false
+  stopPcmRecorder()
+  stopAudioLevelMonitor()
+  stopAudioStream()
+
+  if (streamSocket && streamSocket.readyState === WebSocket.OPEN) {
+    streamSocket.send(JSON.stringify({ type: 'session.stop' }))
+    streamSocket.close()
+  } else if (streamSocket) {
+    streamSocket.close()
+  }
+  streamSocket = null
+  pendingPcm = []
+  partialText = ''
 }
 
 function stopPcmRecorder() {
@@ -86,17 +161,58 @@ function stopPcmRecorder() {
   }
 }
 
-async function doUpload(audio: Blob) {
+async function doRecognize(audio: Blob) {
   uploading.value = true
   try {
-    const response = await uploadAudio(audio)
-    emit('uploaded', response.data)
+    const response = await recognizeAudio(audio, props.engine)
+    emit('recognized', response.data.originalText)
   } catch (error) {
-    const message = error instanceof Error ? error.message : '录音上传失败'
+    const message = error instanceof Error ? error.message : '离线识别失败'
     emit('error', message)
   } finally {
     uploading.value = false
   }
+}
+
+function handleStreamMessage(raw: string) {
+  const message = JSON.parse(raw) as { type: string; text?: string; message?: string }
+  if (message.type === 'configured') {
+    streamReady = true
+    flushPendingPcm()
+  } else if (message.type === 'speech_started') {
+    streamStatus.value = 'speaking'
+  } else if (message.type === 'speech_stopped') {
+    streamStatus.value = 'listening'
+  } else if (message.type === 'delta') {
+    partialText += message.text ?? ''
+    emit('liveDelta', partialText)
+  } else if (message.type === 'completed') {
+    const completedText = (message.text || partialText).trim()
+    if (completedText) {
+      emit('liveCompleted', completedText)
+    }
+    partialText = ''
+    emit('liveDelta', '')
+  } else if (message.type === 'error') {
+    emit('error', message.message || '实时识别服务异常')
+  }
+}
+
+function sendPcmChunk(pcm: Int16Array) {
+  if (!pcm.length) return
+  if (!streamSocket || streamSocket.readyState !== WebSocket.OPEN || !streamReady) {
+    pendingPcm.push(pcm)
+    return
+  }
+  streamSocket.send(JSON.stringify({
+    type: 'audio.append',
+    audio: pcmToBase64(pcm),
+  }))
+}
+
+function flushPendingPcm() {
+  const chunks = pendingPcm.splice(0)
+  chunks.forEach(sendPcmChunk)
 }
 
 function toggleRecording() {
@@ -121,6 +237,16 @@ function resampleTo16kPcm(input: Float32Array, sourceRate: number): Int16Array {
   }
 
   return output
+}
+
+function pcmToBase64(pcm: Int16Array): string {
+  const bytes = new Uint8Array(pcm.buffer)
+  let binary = ''
+  const batchSize = 0x8000
+  for (let i = 0; i < bytes.length; i += batchSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + batchSize))
+  }
+  return btoa(binary)
 }
 
 function pcmChunksToWavBlob(chunks: Int16Array[]): Blob {
@@ -158,6 +284,19 @@ function writeString(view: DataView, offset: number, text: string) {
   for (let i = 0; i < text.length; i++) {
     view.setUint8(offset + i, text.charCodeAt(i))
   }
+}
+
+function getStepFunWsUrl(): string {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${window.location.host}/ws/asr/stepfun`
+}
+
+function resetStreamingState() {
+  if (streamSocket) {
+    streamSocket.close()
+    streamSocket = null
+  }
+  streamReady = false
 }
 
 function startAudioLevelMonitor() {
@@ -234,10 +373,12 @@ onUnmounted(() => {
     </button>
 
     <div class="recorder-copy">
-      <strong v-if="uploading">上传中...</strong>
-      <strong v-else-if="recording">录音中...</strong>
-      <strong v-else>点击开始录音</strong>
-      <span>录音会转换为 16kHz / 16bit / 单声道 WAV，以兼容 Vosk 离线识别。</span>
+      <strong v-if="uploading">离线识别中...</strong>
+      <strong v-else-if="streamStatus === 'connecting'">连接实时识别...</strong>
+      <strong v-else-if="streamStatus === 'speaking'">正在转写...</strong>
+      <strong v-else-if="recording">正在聆听...</strong>
+      <strong v-else>{{ mode === 'stream' ? '实时语音输入' : 'Vosk 离线识别' }}</strong>
+      <span>{{ mode === 'stream' ? '音频会以 16k PCM 分片发送到后端 StepFun 代理。' : '录音会转换为标准 WAV 后上传识别。' }}</span>
     </div>
 
     <div v-if="recording" class="level-track">
