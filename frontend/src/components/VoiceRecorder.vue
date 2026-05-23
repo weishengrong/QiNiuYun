@@ -12,15 +12,17 @@ const recording = ref(false)
 const uploading = ref(false)
 const audioLevel = ref(0)
 
-let mediaRecorder: MediaRecorder | null = null
 let mediaStream: MediaStream | null = null
+let audioContext: AudioContext | null = null
+let sourceNode: MediaStreamAudioSourceNode | null = null
+let processorNode: ScriptProcessorNode | null = null
 let analyser: AnalyserNode | null = null
 let animationId = 0
-let chunks: Blob[] = []
+let pcmChunks: Int16Array[] = []
 
 async function startRecording() {
   try {
-    chunks = []
+    pcmChunks = []
     mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         channelCount: 1,
@@ -30,37 +32,58 @@ async function startRecording() {
       },
     })
 
-    const mimeType = getSupportedMimeType()
-    mediaRecorder = new MediaRecorder(mediaStream, mimeType ? { mimeType } : undefined)
-
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        chunks.push(event.data)
-      }
-    }
-
-    mediaRecorder.onstop = async () => {
-      stopAudioLevelMonitor()
-      stopAudioStream()
-      if (chunks.length === 0) return
-
-      const audio = new Blob(chunks, { type: mimeType || 'audio/webm' })
-      await doUpload(audio)
-    }
-
-    mediaRecorder.start(250)
     recording.value = true
+    await startPcmRecorder()
     startAudioLevelMonitor()
   } catch (error) {
     emit('error', getMicrophoneErrorMessage(error))
   }
 }
 
-function stopRecording() {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop()
+async function startPcmRecorder() {
+  if (!mediaStream) return
+
+  audioContext = new AudioContext()
+  sourceNode = audioContext.createMediaStreamSource(mediaStream)
+  processorNode = audioContext.createScriptProcessor(4096, 1, 1)
+
+  processorNode.onaudioprocess = (event) => {
+    if (!recording.value || !audioContext) return
+    const input = event.inputBuffer.getChannelData(0)
+    pcmChunks.push(resampleTo16kPcm(input, audioContext.sampleRate))
   }
+
+  sourceNode.connect(processorNode)
+  processorNode.connect(audioContext.destination)
+}
+
+function stopRecording() {
   recording.value = false
+  stopPcmRecorder()
+  stopAudioLevelMonitor()
+  stopAudioStream()
+
+  if (pcmChunks.length > 0) {
+    const wavBlob = pcmChunksToWavBlob(pcmChunks)
+    pcmChunks = []
+    doUpload(wavBlob)
+  }
+}
+
+function stopPcmRecorder() {
+  if (processorNode) {
+    processorNode.disconnect()
+    processorNode.onaudioprocess = null
+    processorNode = null
+  }
+  if (sourceNode) {
+    sourceNode.disconnect()
+    sourceNode = null
+  }
+  if (audioContext) {
+    audioContext.close()
+    audioContext = null
+  }
 }
 
 async function doUpload(audio: Blob) {
@@ -85,13 +108,56 @@ function toggleRecording() {
   }
 }
 
-function getSupportedMimeType(): string | undefined {
-  const types = [
-    'audio/webm;codecs=opus',
-    'audio/webm',
-    'audio/ogg;codecs=opus',
-  ]
-  return types.find((type) => MediaRecorder.isTypeSupported(type))
+function resampleTo16kPcm(input: Float32Array, sourceRate: number): Int16Array {
+  const targetRate = 16000
+  const ratio = sourceRate / targetRate
+  const outputLength = Math.floor(input.length / ratio)
+  const output = new Int16Array(outputLength)
+
+  for (let i = 0; i < outputLength; i++) {
+    const sourceIndex = Math.floor(i * ratio)
+    const sample = Math.max(-1, Math.min(1, input[sourceIndex] ?? 0))
+    output[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff
+  }
+
+  return output
+}
+
+function pcmChunksToWavBlob(chunks: Int16Array[]): Blob {
+  const totalSamples = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
+  const dataSize = totalSamples * 2
+  const buffer = new ArrayBuffer(44 + dataSize)
+  const view = new DataView(buffer)
+
+  writeString(view, 0, 'RIFF')
+  view.setUint32(4, 36 + dataSize, true)
+  writeString(view, 8, 'WAVE')
+  writeString(view, 12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, 16000, true)
+  view.setUint32(28, 16000 * 2, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  writeString(view, 36, 'data')
+  view.setUint32(40, dataSize, true)
+
+  let offset = 44
+  for (const chunk of chunks) {
+    for (let i = 0; i < chunk.length; i++) {
+      view.setInt16(offset, chunk[i], true)
+      offset += 2
+    }
+  }
+
+  return new Blob([buffer], { type: 'audio/wav' })
+}
+
+function writeString(view: DataView, offset: number, text: string) {
+  for (let i = 0; i < text.length; i++) {
+    view.setUint8(offset + i, text.charCodeAt(i))
+  }
 }
 
 function startAudioLevelMonitor() {
@@ -148,6 +214,7 @@ onUnmounted(() => {
   if (recording.value) {
     stopRecording()
   }
+  stopPcmRecorder()
   stopAudioLevelMonitor()
   stopAudioStream()
 })
@@ -170,7 +237,7 @@ onUnmounted(() => {
       <strong v-if="uploading">上传中...</strong>
       <strong v-else-if="recording">录音中...</strong>
       <strong v-else>点击开始录音</strong>
-      <span>本 PR 会把录音上传到后端保存，识别能力将在后续 PR 接入。</span>
+      <span>录音会转换为 16kHz / 16bit / 单声道 WAV，以兼容 Vosk 离线识别。</span>
     </div>
 
     <div v-if="recording" class="level-track">
