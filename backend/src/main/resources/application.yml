@@ -2,5 +2,17 @@
   application:
     name: qiniuyun-backend
 
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/voice_input?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.example.qiniuyun.model.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
 server:
   port: 8080
