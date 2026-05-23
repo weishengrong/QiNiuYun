@@ -2,6 +2,11 @@
   application:
     name: qiniuyun-backend
 
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
   datasource:
     url: ${MYSQL_URL:jdbc:mysql://localhost:3306/voice_input?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai}
     username: ${MYSQL_USERNAME:root}
@@ -13,6 +18,9 @@ mybatis:
   type-aliases-package: com.example.qiniuyun.model.entity
   configuration:
     map-underscore-to-camel-case: true
+
+audio:
+  upload-dir: ${AUDIO_UPLOAD_DIR:./uploads/audio}
 
 server:
   port: 8080
