@@ -1,6 +1,6 @@
 ﻿package com.example.qiniuyun.config;
 
-import com.example.qiniuyun.websocket.StepFunAsrEntryHandler;
+import com.example.qiniuyun.websocket.StepFunAsrWebSocketHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
@@ -12,11 +12,11 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 @RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketConfigurer {
 
-    private final StepFunAsrEntryHandler stepFunAsrEntryHandler;
+    private final StepFunAsrWebSocketHandler stepFunAsrWebSocketHandler;
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(stepFunAsrEntryHandler, "/ws/asr/stepfun")
+        registry.addHandler(stepFunAsrWebSocketHandler, "/ws/asr/stepfun")
                 .setAllowedOriginPatterns("*");
     }
 }
