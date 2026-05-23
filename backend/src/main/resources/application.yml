@@ -29,5 +29,16 @@ vosk:
 asr:
   default-engine: vosk
 
+stepfun:
+  asr:
+    token: ${STEPFUN_API_TOKEN:}
+    stream-url: wss://api.stepfun.com/v1/realtime/asr/stream
+    model: step-asr-1.1-stream
+    language: zh
+    sample-rate: 16000
+    silence-duration-ms: 800
+    vad-threshold: 0.5
+    enable-itn: true
+
 server:
   port: 8080
