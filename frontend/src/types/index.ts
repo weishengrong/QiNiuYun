@@ -20,6 +20,24 @@ export interface AsrResponse {
   confidence: number
 }
 
+export interface RecordVO {
+  id: number
+  originalText: string | null
+  editedText: string | null
+  engineType: string | null
+  duration: number | null
+  confidence: number | null
+  status: number
+  createdAt: string
+}
+
+export interface RecordPageData {
+  total: number
+  page: number
+  size: number
+  records: RecordVO[]
+}
+
 export interface EngineOption {
   label: string
   value: string

@@ -1,16 +1,25 @@
 ﻿# QiNiuYun 语音输入法
 
-这是语音输入法项目的新仓库，用于按 Pull Request 粒度逐步实现功能。
+QiNiuYun 是一个基于 Web 的语音输入法产品，目标是帮助用户提升文本输入效率。
 
-## PR 1 功能范围
+当前项目采用两条识别路径：
 
-本阶段只初始化前后端基础工程：
+- StepFun 实时识别：主路径，支持边说边出字。
+- Vosk 离线识别：回退路径，在云端服务不可用时提供基础识别能力。
 
-- 后端：Spring Boot 基础应用和健康检查接口
-- 前端：Vue 3 + Vite + TypeScript 基础页面
-- 不接入数据库
-- 不接入 ASR 模型
-- 不实现录音上传
+项目不在前端保存任何模型密钥。StepFun Token 通过后端环境变量 `STEPFUN_API_TOKEN` 注入，由后端代理连接云端实时 ASR。
+
+## 当前能力
+
+- 前后端基础工程
+- 语音识别历史记录存储
+- 录音文件上传与本地保存
+- 前端浏览器录音
+- 前端标准 WAV 录音输出
+- Vosk 离线识别
+- StepFun 后端 WebSocket 代理
+- StepFun 前端实时语音输入
+- 实时识别状态与错误提示
 
 ## 启动方式
 
@@ -18,6 +27,7 @@
 
 ```powershell
 cd backend
+$env:STEPFUN_API_TOKEN="你的 StepFun Token"
 mvn spring-boot:run
 ```
 
@@ -45,8 +55,18 @@ http://localhost:5173
 
 ```powershell
 cd frontend
-npm run build
+npm.cmd run build
 
 cd ..\backend
 mvn test
 ```
+
+## 识别模式
+
+### StepFun 实时
+
+适合日常输入场景。前端采集 16k PCM 音频分片，通过后端 WebSocket 代理发送给 StepFun，返回 delta 增量文本和 completed 最终文本。
+
+### Vosk 离线
+
+适合离线回退场景。前端生成 16kHz / 16bit / 单声道 WAV，后端上传后调用本地 Vosk 模型识别。

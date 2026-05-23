@@ -1,5 +1,7 @@
 ﻿<script setup lang="ts">
 import { ref } from 'vue'
+import HistoryRecords from './components/HistoryRecords.vue'
+import TextEditor from './components/TextEditor.vue'
 import VoiceRecorder from './components/VoiceRecorder.vue'
 import type { EngineOption } from './types'
 
@@ -37,8 +39,9 @@ function onError(message: string) {
   }, 6000)
 }
 
-function updateText(event: Event) {
-  text.value = (event.target as HTMLTextAreaElement).value
+function onReuse(result: string) {
+  text.value = result
+  liveDraft.value = ''
 }
 
 function getEngineMode(value: string): 'stream' | 'upload' {
@@ -57,6 +60,21 @@ function getEngineMode(value: string): 'stream' | 'upload' {
       </div>
     </header>
 
+    <section class="metrics-row" aria-label="产品能力">
+      <div>
+        <strong>实时</strong>
+        <span>边说边出字</span>
+      </div>
+      <div>
+        <strong>准确</strong>
+        <span>最终文本回填</span>
+      </div>
+      <div>
+        <strong>可控</strong>
+        <span>云端实时 + 离线回退</span>
+      </div>
+    </section>
+
     <section class="toolbar-panel">
       <label for="engine">识别引擎</label>
       <select id="engine" v-model="engine">
@@ -66,13 +84,10 @@ function getEngineMode(value: string): 'stream' | 'upload' {
       </select>
     </section>
 
-    <section class="editor-panel">
-      <textarea
-        :value="liveDraft ? `${text}${text ? ' ' : ''}${liveDraft}` : text"
-        placeholder="开始说话，识别结果会显示在这里..."
-        @input="updateText"
-      ></textarea>
-    </section>
+    <TextEditor
+      :text="liveDraft ? `${text}${text ? ' ' : ''}${liveDraft}` : text"
+      @update-text="text = $event"
+    />
 
     <VoiceRecorder
       :engine="engine"
@@ -82,6 +97,8 @@ function getEngineMode(value: string): 'stream' | 'upload' {
       @live-completed="onLiveCompleted"
       @error="onError"
     />
+
+    <HistoryRecords @reuse="onReuse" @error="onError" />
 
     <p v-if="errorMessage" class="error-toast">{{ errorMessage }}</p>
   </main>

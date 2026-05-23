@@ -17,17 +17,26 @@ textarea {
   font: inherit;
 }
 
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .app-shell {
-  width: min(880px, calc(100% - 32px));
+  width: min(920px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 40px 0;
+  padding: 34px 0;
 }
 
 .hero {
   display: flex;
   align-items: center;
   gap: 18px;
-  padding-bottom: 22px;
+  padding-bottom: 20px;
   border-bottom: 1px solid #dbe3ea;
 }
 
@@ -49,6 +58,7 @@ textarea {
 }
 
 h1,
+h2,
 p {
   margin-top: 0;
 }
@@ -65,14 +75,44 @@ h1 {
   font-size: 15px;
 }
 
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.metrics-row div,
 .toolbar-panel,
 .editor-panel,
-.recorder-panel {
-  margin-top: 18px;
-  padding: 18px;
+.recorder-panel,
+.history-panel {
   border: 1px solid #dbe3ea;
   border-radius: 8px;
   background: #fff;
+}
+
+.metrics-row div {
+  padding: 14px 16px;
+}
+
+.metrics-row strong,
+.metrics-row span {
+  display: block;
+}
+
+.metrics-row span {
+  margin-top: 4px;
+  color: #607086;
+  font-size: 13px;
+}
+
+.toolbar-panel,
+.editor-panel,
+.recorder-panel,
+.history-panel {
+  margin-top: 16px;
+  padding: 18px;
 }
 
 .toolbar-panel {
@@ -104,6 +144,30 @@ h1 {
   color: #172033;
   font-size: 16px;
   line-height: 1.7;
+}
+
+.editor-actions,
+.record-actions,
+.pagination {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.editor-actions {
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.editor-actions button,
+.record-actions button,
+.pagination button,
+.history-header button {
+  padding: 6px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #334155;
 }
 
 .recorder-panel {
@@ -185,6 +249,67 @@ h1 {
   transition: width 0.1s ease;
 }
 
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.history-header h2 {
+  margin-bottom: 0;
+  font-size: 18px;
+}
+
+.empty-state {
+  padding: 24px 0;
+  color: #607086;
+  text-align: center;
+}
+
+.record-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.record-item {
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.record-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.record-text {
+  margin: 8px 0 12px;
+  color: #172033;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.record-edit textarea {
+  width: 100%;
+  margin: 8px 0;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  resize: vertical;
+}
+
+.pagination {
+  justify-content: center;
+  margin-top: 14px;
+  color: #607086;
+}
+
 .error-toast {
   position: fixed;
   top: 16px;
@@ -206,9 +331,16 @@ h1 {
     align-items: flex-start;
   }
 
-  .recorder-panel,
-  .toolbar-panel {
+  .metrics-row,
+  .recorder-panel {
     grid-template-columns: 1fr;
+  }
+
+  .toolbar-panel {
     flex-direction: column;
+  }
+
+  .toolbar-panel select {
+    width: 100%;
   }
 }

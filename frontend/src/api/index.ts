@@ -1,5 +1,5 @@
 ﻿import axios from 'axios'
-import type { ApiResult, AsrResponse, AudioUploadVO } from '../types'
+import type { ApiResult, AsrResponse, AudioUploadVO, RecordPageData } from '../types'
 
 const http = axios.create({
   baseURL: '/api',
@@ -33,6 +33,23 @@ export async function recognizeAudio(audio: Blob, engine = 'vosk'): Promise<ApiR
   const response = await http.post<ApiResult<AsrResponse>>('/asr/recognize', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
+  return response.data
+}
+
+export async function fetchRecords(page = 1, size = 20): Promise<ApiResult<RecordPageData>> {
+  const response = await http.get<ApiResult<RecordPageData>>('/records', {
+    params: { page, size },
+  })
+  return response.data
+}
+
+export async function updateRecordText(id: number, editedText: string): Promise<ApiResult<void>> {
+  const response = await http.put<ApiResult<void>>(`/records/${id}/text`, { editedText })
+  return response.data
+}
+
+export async function deleteRecord(id: number): Promise<ApiResult<void>> {
+  const response = await http.delete<ApiResult<void>>(`/records/${id}`)
   return response.data
 }
 
