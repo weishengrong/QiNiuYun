@@ -22,5 +22,12 @@ mybatis:
 audio:
   upload-dir: ${AUDIO_UPLOAD_DIR:./uploads/audio}
 
+vosk:
+  model-path: ${VOSK_MODEL_PATH:models/vosk-model-small-cn-0.22}
+  sample-rate: 16000
+
+asr:
+  default-engine: vosk
+
 server:
   port: 8080
