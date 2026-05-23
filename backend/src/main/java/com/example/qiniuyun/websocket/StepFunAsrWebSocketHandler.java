@@ -173,6 +173,7 @@ public class StepFunAsrWebSocketHandler extends TextWebSocketHandler {
             try {
                 JsonObject node = JsonParser.parseString(text).getAsJsonObject();
                 String type = getString(node, "type");
+                log.debug("StepFun ASR事件: {}", type);
 
                 if ("session.created".equals(type)) {
                     sendSessionUpdate();
@@ -181,6 +182,7 @@ public class StepFunAsrWebSocketHandler extends TextWebSocketHandler {
 
                 if ("session.updated".equals(type)) {
                     configured = true;
+                    log.info("StepFun ASR会话配置完成");
                     sendJson(browserSession, Map.of("type", "configured"));
                     return;
                 }
@@ -199,6 +201,7 @@ public class StepFunAsrWebSocketHandler extends TextWebSocketHandler {
                     sendJson(browserSession, Map.of("type", "speech_stopped"));
                 } else if (type.endsWith(".error") || "error".equals(type)) {
                     String message = getErrorMessage(node);
+                    log.warn("StepFun ASR返回错误: {}", StringUtils.hasText(message) ? message : text);
                     sendJson(browserSession, Map.of("type", "error", "message", StringUtils.hasText(message) ? message : text));
                 }
             } catch (Exception e) {
@@ -209,6 +212,7 @@ public class StepFunAsrWebSocketHandler extends TextWebSocketHandler {
         private void sendSessionUpdate() {
             WebSocket socket = stepFunSocket;
             if (socket == null) {
+                log.warn("StepFun ASR session.created 已收到，但WebSocket尚未就绪");
                 sendJson(browserSession, Map.of("type", "error", "message", "StepFun 连接尚未就绪，请重试"));
                 return;
             }

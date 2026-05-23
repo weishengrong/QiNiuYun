@@ -18,6 +18,7 @@ const recording = ref(false)
 const uploading = ref(false)
 const audioLevel = ref(0)
 const streamStatus = ref<'idle' | 'connecting' | 'listening' | 'speaking'>('idle')
+const streamMessage = ref('')
 
 let mediaStream: MediaStream | null = null
 let audioContext: AudioContext | null = null
@@ -57,18 +58,26 @@ async function startStreaming() {
     pendingPcm = []
     partialText = ''
     streamStatus.value = 'connecting'
+    streamMessage.value = '连接实时识别...'
     mediaStream = await getMicrophoneStream()
 
     streamSocket = new WebSocket(getStepFunWsUrl())
     streamSocket.onopen = () => {
       recording.value = true
       streamStatus.value = 'listening'
+      streamMessage.value = '等待 StepFun 配置...'
     }
     streamSocket.onmessage = (event) => handleStreamMessage(event.data)
-    streamSocket.onerror = () => emit('error', '实时识别连接异常，请检查后端服务和 StepFun Token 配置')
+    streamSocket.onerror = () => {
+      streamMessage.value = '实时识别连接异常'
+      emit('error', '实时识别连接异常，请检查后端服务和 StepFun Token 配置')
+    }
     streamSocket.onclose = () => {
       recording.value = false
       streamStatus.value = 'idle'
+      if (streamMessage.value && streamMessage.value !== '实时识别连接异常') {
+        streamMessage.value = '实时识别已关闭'
+      }
     }
 
     await startPcmRecorder(sendPcmChunk)
@@ -130,6 +139,7 @@ function stopStreaming() {
   recording.value = false
   streamStatus.value = 'idle'
   streamReady = false
+  streamMessage.value = ''
   stopPcmRecorder()
   stopAudioLevelMonitor()
   stopAudioStream()
@@ -176,13 +186,18 @@ async function doRecognize(audio: Blob) {
 
 function handleStreamMessage(raw: string) {
   const message = JSON.parse(raw) as { type: string; text?: string; message?: string }
-  if (message.type === 'configured') {
+  if (message.type === 'ready') {
+    streamMessage.value = '实时通道已连接...'
+  } else if (message.type === 'configured') {
     streamReady = true
+    streamMessage.value = '正在聆听...'
     flushPendingPcm()
   } else if (message.type === 'speech_started') {
     streamStatus.value = 'speaking'
+    streamMessage.value = '正在转写...'
   } else if (message.type === 'speech_stopped') {
     streamStatus.value = 'listening'
+    streamMessage.value = '正在整理句子...'
   } else if (message.type === 'delta') {
     partialText += message.text ?? ''
     emit('liveDelta', partialText)
@@ -192,9 +207,14 @@ function handleStreamMessage(raw: string) {
       emit('liveCompleted', completedText)
     }
     partialText = ''
+    streamStatus.value = 'listening'
+    streamMessage.value = '正在聆听...'
     emit('liveDelta', '')
   } else if (message.type === 'error') {
+    streamMessage.value = '实时识别异常'
     emit('error', message.message || '实时识别服务异常')
+  } else if (message.type === 'closed') {
+    streamMessage.value = message.message || '实时识别已关闭'
   }
 }
 
@@ -297,6 +317,7 @@ function resetStreamingState() {
     streamSocket = null
   }
   streamReady = false
+  streamMessage.value = ''
 }
 
 function startAudioLevelMonitor() {
@@ -374,9 +395,9 @@ onUnmounted(() => {
 
     <div class="recorder-copy">
       <strong v-if="uploading">离线识别中...</strong>
-      <strong v-else-if="streamStatus === 'connecting'">连接实时识别...</strong>
-      <strong v-else-if="streamStatus === 'speaking'">正在转写...</strong>
-      <strong v-else-if="recording">正在聆听...</strong>
+      <strong v-else-if="streamStatus === 'connecting'">{{ streamMessage || '连接实时识别...' }}</strong>
+      <strong v-else-if="streamStatus === 'speaking'">{{ streamMessage || '正在转写...' }}</strong>
+      <strong v-else-if="recording">{{ streamMessage || '正在聆听...' }}</strong>
       <strong v-else>{{ mode === 'stream' ? '实时语音输入' : 'Vosk 离线识别' }}</strong>
       <span>{{ mode === 'stream' ? '音频会以 16k PCM 分片发送到后端 StepFun 代理。' : '录音会转换为标准 WAV 后上传识别。' }}</span>
     </div>
