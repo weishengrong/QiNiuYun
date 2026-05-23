@@ -1,0 +1,22 @@
+﻿# Logs
+logs
+*.log
+
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+target
+
+# IDE
+.idea
+.vscode
+*.iml
+
+# Runtime files
+uploads
+
+# Environment
+.env
+.env.*
