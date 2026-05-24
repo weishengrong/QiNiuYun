@@ -33,6 +33,20 @@ public class AsrService {
         return engine.recognize(audioFile, audioFormat);
     }
 
+    public AsrEngine.AsrResult recognize(byte[] audioData, String audioFormat, String engineType) {
+        AsrEngine engine = getEngine(engineType);
+        if (engine == null) {
+            log.warn("指定引擎 {} 不可用，回退到默认引擎 {}", engineType, defaultEngine);
+            engine = getEngine(defaultEngine);
+        }
+        if (engine == null) {
+            engine = voskAsrEngine;
+        }
+
+        log.info("使用ASR引擎: {} 识别音频数据: {} bytes", engine.getEngineType(), audioData.length);
+        return engine.recognize(audioData, audioFormat);
+    }
+
     private AsrEngine getEngine(String engineType) {
         String type = engineType == null || engineType.isBlank() ? defaultEngine : engineType;
         return "vosk".equals(type) ? voskAsrEngine : null;

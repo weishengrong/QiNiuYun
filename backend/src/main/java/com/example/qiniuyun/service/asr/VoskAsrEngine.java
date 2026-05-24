@@ -13,15 +13,18 @@ import org.vosk.LogLevel;
 import org.vosk.Model;
 import org.vosk.Recognizer;
 
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioInputStream;
-import javax.sound.sampled.AudioSystem;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class VoskAsrEngine implements AsrEngine {
+
+    private static final int BUFFER_SIZE = 16384;
+    private static final int WAV_HEADER_SIZE = 44;
 
     private final VoskConfig voskConfig;
     private Model model;
@@ -55,34 +58,52 @@ public class VoskAsrEngine implements AsrEngine {
             log.warn("Vosk模型未加载，无法执行离线识别");
             return new AsrResult("", 0);
         }
+        try {
+            byte[] fileBytes = readFileBytes(audioFile);
+            return recognize(fileBytes, audioFormat);
+        } catch (Exception e) {
+            log.error("Vosk识别失败: {}", e.getMessage(), e);
+            return new AsrResult("", 0);
+        }
+    }
 
-        try (
-                AudioInputStream pcmStream = openPcm16k16bitMonoStream(audioFile);
-                Recognizer recognizer = new Recognizer(model, voskConfig.getSampleRate())
-        ) {
-            byte[] buffer = new byte[4096];
-            int bytesRead;
+    @Override
+    public AsrResult recognize(byte[] audioData, String audioFormat) {
+        if (model == null) {
+            log.warn("Vosk模型未加载，无法执行离线识别");
+            return new AsrResult("", 0);
+        }
+
+        byte[] pcmData = extractPcmFromWav(audioData);
+        if (pcmData.length == 0) {
+            log.warn("WAV文件中未提取到PCM数据");
+            return new AsrResult("", 0);
+        }
+
+        try (Recognizer recognizer = new Recognizer(model, voskConfig.getSampleRate())) {
+            int offset = 0;
             long totalBytes = 0;
             long sampleCount = 0;
             double squareSum = 0;
             int maxAbs = 0;
             StringBuilder textBuilder = new StringBuilder();
 
-            while ((bytesRead = pcmStream.read(buffer)) != -1) {
-                if (bytesRead == 0) {
-                    continue;
-                }
-                totalBytes += bytesRead;
-                for (int i = 0; i + 1 < bytesRead; i += 2) {
-                    int sample = (short) ((buffer[i] & 0xff) | (buffer[i + 1] << 8));
+            while (offset < pcmData.length) {
+                int chunkSize = Math.min(BUFFER_SIZE, pcmData.length - offset);
+                if (chunkSize == 0) break;
+
+                totalBytes += chunkSize;
+                for (int i = 0; i + 1 < chunkSize; i += 2) {
+                    int sample = (short) ((pcmData[offset + i] & 0xff) | (pcmData[offset + i + 1] << 8));
                     int abs = Math.abs(sample);
                     maxAbs = Math.max(maxAbs, abs);
                     squareSum += (double) sample * sample;
                     sampleCount++;
                 }
-                if (recognizer.acceptWaveForm(buffer, bytesRead)) {
+                if (recognizer.acceptWaveForm(pcmData, offset, chunkSize)) {
                     appendRecognizedText(textBuilder, recognizer.getResult());
                 }
+                offset += chunkSize;
             }
 
             appendRecognizedText(textBuilder, recognizer.getFinalResult());
@@ -98,10 +119,39 @@ public class VoskAsrEngine implements AsrEngine {
         }
     }
 
-    private AudioInputStream openPcm16k16bitMonoStream(File audioFile) throws Exception {
-        AudioInputStream originalStream = AudioSystem.getAudioInputStream(audioFile);
-        AudioFormat targetFormat = new AudioFormat(voskConfig.getSampleRate(), 16, 1, true, false);
-        return AudioSystem.getAudioInputStream(targetFormat, originalStream);
+    private byte[] extractPcmFromWav(byte[] wavData) {
+        if (wavData == null || wavData.length < WAV_HEADER_SIZE) {
+            return new byte[0];
+        }
+        if (wavData[0] != 'R' || wavData[1] != 'I' || wavData[2] != 'F' || wavData[3] != 'F') {
+            return wavData;
+        }
+        int dataOffset = WAV_HEADER_SIZE;
+        for (int i = WAV_HEADER_SIZE - 8; i < wavData.length - 4; i++) {
+            if (wavData[i] == 'd' && wavData[i + 1] == 'a' && wavData[i + 2] == 't' && wavData[i + 3] == 'a') {
+                dataOffset = i + 8;
+                break;
+            }
+        }
+        int pcmLength = wavData.length - dataOffset;
+        if (pcmLength <= 0) {
+            return new byte[0];
+        }
+        byte[] pcm = new byte[pcmLength];
+        System.arraycopy(wavData, dataOffset, pcm, 0, pcmLength);
+        return pcm;
+    }
+
+    private byte[] readFileBytes(File file) throws IOException {
+        try (InputStream in = new FileInputStream(file)) {
+            byte[] buf = new byte[(int) file.length()];
+            int offset = 0;
+            int read;
+            while ((read = in.read(buf, offset, buf.length - offset)) != -1) {
+                offset += read;
+            }
+            return buf;
+        }
     }
 
     private void appendRecognizedText(StringBuilder textBuilder, String resultJson) {

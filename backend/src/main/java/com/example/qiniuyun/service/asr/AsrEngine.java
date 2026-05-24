@@ -6,6 +6,8 @@ public interface AsrEngine {
 
     AsrResult recognize(File audioFile, String audioFormat);
 
+    AsrResult recognize(byte[] audioData, String audioFormat);
+
     String getEngineType();
 
     record AsrResult(String text, double confidence) {}

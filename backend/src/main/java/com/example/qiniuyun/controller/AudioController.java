@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
+import java.io.IOException;
 
 @Slf4j
 @RestController
@@ -82,13 +83,14 @@ public class AudioController {
             record.setEngineType(engine == null || engine.isBlank() ? "vosk" : engine);
             recordId = recordService.createRecord(record);
 
-            File savedFile = audioService.saveAudio(audioFile);
-            AsrEngine.AsrResult result = asrService.recognize(savedFile, audioFormat, engine);
+            byte[] audioBytes = audioFile.getBytes();
+            AsrEngine.AsrResult result = asrService.recognize(audioBytes, audioFormat, engine);
             if (result.text() == null || result.text().isBlank()) {
                 recordService.updateError(recordId, "识别结果为空");
                 return ApiResult.error(50001, "语音识别失败，请检查音频质量或模型配置");
             }
 
+            audioService.saveAudio(audioFile);
             recordService.updateResult(recordId, result.text(), result.confidence());
 
             AsrResponse response = new AsrResponse();
@@ -98,6 +100,12 @@ public class AudioController {
             response.setDuration(0);
             response.setConfidence(result.confidence());
             return ApiResult.success(response);
+        } catch (IOException e) {
+            log.error("音频数据读取失败", e);
+            if (recordId != null) {
+                recordService.updateError(recordId, e.getMessage());
+            }
+            return ApiResult.error(50002, "音频数据读取失败: " + e.getMessage());
         } catch (Exception e) {
             log.error("语音识别处理失败", e);
             if (recordId != null) {
