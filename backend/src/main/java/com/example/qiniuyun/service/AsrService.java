@@ -1,4 +1,4 @@
-﻿package com.example.qiniuyun.service;
+package com.example.qiniuyun.service;
 
 import com.example.qiniuyun.service.asr.AsrEngine;
 import com.example.qiniuyun.service.asr.VoskAsrEngine;

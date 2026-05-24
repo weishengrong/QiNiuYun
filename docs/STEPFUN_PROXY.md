@@ -1,4 +1,4 @@
-﻿# StepFun 实时 ASR 后端代理
+# StepFun 实时 ASR 后端代理
 
 本 PR 将 `/ws/asr/stepfun` 从占位入口升级为完整后端代理。
 

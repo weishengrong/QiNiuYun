@@ -1,4 +1,4 @@
-﻿package com.example.qiniuyun.model.entity;
+package com.example.qiniuyun.model.entity;
 
 import lombok.Data;
 

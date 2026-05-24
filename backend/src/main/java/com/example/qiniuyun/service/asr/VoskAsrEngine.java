@@ -1,4 +1,4 @@
-﻿package com.example.qiniuyun.service.asr;
+package com.example.qiniuyun.service.asr;
 
 import com.example.qiniuyun.config.VoskConfig;
 import com.google.gson.JsonObject;
@@ -16,7 +16,6 @@ import org.vosk.Recognizer;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 
 @Slf4j
@@ -57,39 +56,64 @@ public class VoskAsrEngine implements AsrEngine {
             return new AsrResult("", 0);
         }
 
-        try {
-            byte[] pcmData = convertToPcm16k16bitMono(audioFile);
-            if (pcmData.length == 0) {
-                return new AsrResult("", 0);
+        try (
+                AudioInputStream pcmStream = openPcm16k16bitMonoStream(audioFile);
+                Recognizer recognizer = new Recognizer(model, voskConfig.getSampleRate())
+        ) {
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            long totalBytes = 0;
+            long sampleCount = 0;
+            double squareSum = 0;
+            int maxAbs = 0;
+            StringBuilder textBuilder = new StringBuilder();
+
+            while ((bytesRead = pcmStream.read(buffer)) != -1) {
+                if (bytesRead == 0) {
+                    continue;
+                }
+                totalBytes += bytesRead;
+                for (int i = 0; i + 1 < bytesRead; i += 2) {
+                    int sample = (short) ((buffer[i] & 0xff) | (buffer[i + 1] << 8));
+                    int abs = Math.abs(sample);
+                    maxAbs = Math.max(maxAbs, abs);
+                    squareSum += (double) sample * sample;
+                    sampleCount++;
+                }
+                if (recognizer.acceptWaveForm(buffer, bytesRead)) {
+                    appendRecognizedText(textBuilder, recognizer.getResult());
+                }
             }
 
-            try (Recognizer recognizer = new Recognizer(model, voskConfig.getSampleRate())) {
-                recognizer.acceptWaveForm(pcmData, pcmData.length);
-                String result = recognizer.getFinalResult();
-                JsonObject json = JsonParser.parseString(result).getAsJsonObject();
-                String text = json.has("text") ? json.get("text").getAsString() : "";
-                log.info("Vosk识别完成: format={}, text={}", audioFormat, text);
-                return new AsrResult(text, text.isBlank() ? 0 : 85.0);
-            }
+            appendRecognizedText(textBuilder, recognizer.getFinalResult());
+            String text = textBuilder.toString().trim();
+            double duration = sampleCount / voskConfig.getSampleRate();
+            double rms = sampleCount == 0 ? 0 : Math.sqrt(squareSum / sampleCount);
+            log.info("Vosk识别完成: format={}, bytes={}, duration={}s, maxAbs={}, rms={}, text={}",
+                    audioFormat, totalBytes, String.format("%.2f", duration), maxAbs, String.format("%.2f", rms), text);
+            return new AsrResult(text, text.isBlank() ? 0 : 85.0);
         } catch (Exception e) {
             log.error("Vosk识别失败: {}", e.getMessage(), e);
             return new AsrResult("", 0);
         }
     }
 
-    private byte[] convertToPcm16k16bitMono(File audioFile) throws Exception {
-        try (AudioInputStream originalStream = AudioSystem.getAudioInputStream(audioFile)) {
-            AudioFormat targetFormat = new AudioFormat(16000f, 16, 1, true, false);
-            try (AudioInputStream convertedStream = AudioSystem.getAudioInputStream(targetFormat, originalStream)) {
-                ByteArrayOutputStream output = new ByteArrayOutputStream();
-                byte[] buffer = new byte[4096];
-                int bytesRead;
-                while ((bytesRead = convertedStream.read(buffer)) != -1) {
-                    output.write(buffer, 0, bytesRead);
-                }
-                return output.toByteArray();
-            }
+    private AudioInputStream openPcm16k16bitMonoStream(File audioFile) throws Exception {
+        AudioInputStream originalStream = AudioSystem.getAudioInputStream(audioFile);
+        AudioFormat targetFormat = new AudioFormat(voskConfig.getSampleRate(), 16, 1, true, false);
+        return AudioSystem.getAudioInputStream(targetFormat, originalStream);
+    }
+
+    private void appendRecognizedText(StringBuilder textBuilder, String resultJson) {
+        JsonObject json = JsonParser.parseString(resultJson).getAsJsonObject();
+        String text = json.has("text") ? json.get("text").getAsString().trim() : "";
+        if (text.isBlank()) {
+            return;
         }
+        if (!textBuilder.isEmpty()) {
+            textBuilder.append(' ');
+        }
+        textBuilder.append(text);
     }
 
     @Override

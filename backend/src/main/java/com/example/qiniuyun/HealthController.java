@@ -1,4 +1,4 @@
-﻿package com.example.qiniuyun;
+package com.example.qiniuyun;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;

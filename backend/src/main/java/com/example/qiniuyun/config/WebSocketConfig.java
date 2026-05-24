@@ -1,4 +1,4 @@
-﻿package com.example.qiniuyun.config;
+package com.example.qiniuyun.config;
 
 import com.example.qiniuyun.websocket.StepFunAsrWebSocketHandler;
 import lombok.RequiredArgsConstructor;

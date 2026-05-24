@@ -1,4 +1,4 @@
-﻿# 前端 StepFun 实时语音输入
+# 前端 StepFun 实时语音输入
 
 本 PR 在前端接入 StepFun 实时语音输入体验。
 

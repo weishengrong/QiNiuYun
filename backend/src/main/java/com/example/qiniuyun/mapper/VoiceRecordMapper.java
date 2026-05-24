@@ -1,4 +1,4 @@
-﻿package com.example.qiniuyun.mapper;
+package com.example.qiniuyun.mapper;
 
 import com.example.qiniuyun.model.entity.VoiceRecord;
 import org.apache.ibatis.annotations.Mapper;

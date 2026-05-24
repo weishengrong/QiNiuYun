@@ -1,4 +1,4 @@
-﻿package com.example.qiniuyun.service;
+package com.example.qiniuyun.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

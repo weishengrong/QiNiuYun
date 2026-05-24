@@ -1,4 +1,4 @@
-﻿package com.example.qiniuyun.service;
+package com.example.qiniuyun.service;
 
 import com.example.qiniuyun.mapper.VoiceRecordMapper;
 import com.example.qiniuyun.model.entity.VoiceRecord;

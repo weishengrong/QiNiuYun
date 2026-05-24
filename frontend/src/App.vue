@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref } from 'vue'
 import HistoryRecords from './components/HistoryRecords.vue'
 import TextEditor from './components/TextEditor.vue'

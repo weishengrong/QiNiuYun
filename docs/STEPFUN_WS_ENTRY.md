@@ -1,4 +1,4 @@
-﻿# StepFun 实时识别 WebSocket 入口
+# StepFun 实时识别 WebSocket 入口
 
 本 PR 新增 StepFun 实时识别的配置和后端 WebSocket 入口，为后续实现完整流式 ASR 代理做准备。
 

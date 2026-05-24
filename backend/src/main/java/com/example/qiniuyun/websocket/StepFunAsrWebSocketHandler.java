@@ -1,4 +1,4 @@
-﻿package com.example.qiniuyun.websocket;
+package com.example.qiniuyun.websocket;
 
 import com.example.qiniuyun.config.StepFunAsrConfig;
 import com.google.gson.Gson;
@@ -19,6 +19,7 @@ import java.net.http.WebSocket;
 import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -94,6 +95,7 @@ public class StepFunAsrWebSocketHandler extends TextWebSocketHandler {
     private class StepFunBridge implements WebSocket.Listener {
         private final WebSocketSession browserSession;
         private final StringBuilder serviceMessage = new StringBuilder();
+        private final AtomicInteger audioChunkCount = new AtomicInteger();
         private volatile WebSocket stepFunSocket;
         private volatile boolean configured;
 
@@ -124,6 +126,11 @@ public class StepFunAsrWebSocketHandler extends TextWebSocketHandler {
         void sendAudio(String audio) {
             WebSocket socket = stepFunSocket;
             if (socket == null || !configured) return;
+            int chunkCount = audioChunkCount.incrementAndGet();
+            if (chunkCount == 1 || chunkCount % 20 == 0) {
+                log.info("转发StepFun ASR音频分片: session={}, chunks={}, base64Length={}",
+                        browserSession.getId(), chunkCount, audio.length());
+            }
             socket.sendText(toJson(Map.of(
                     "event_id", eventId(),
                     "type", "input_audio_buffer.append",
@@ -158,7 +165,8 @@ public class StepFunAsrWebSocketHandler extends TextWebSocketHandler {
 
         @Override
         public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-            log.info("StepFun ASR WebSocket关闭: code={}, reason={}", statusCode, reason);
+            log.info("StepFun ASR WebSocket关闭: code={}, reason={}, audioChunks={}",
+                    statusCode, reason, audioChunkCount.get());
             sendJson(browserSession, Map.of("type", "closed", "message", reason == null ? "" : reason));
             return null;
         }
@@ -173,7 +181,11 @@ public class StepFunAsrWebSocketHandler extends TextWebSocketHandler {
             try {
                 JsonObject node = JsonParser.parseString(text).getAsJsonObject();
                 String type = getString(node, "type");
-                log.debug("StepFun ASR事件: {}", type);
+                if (!"conversation.item.input_audio_transcription.delta".equals(type)) {
+                    log.info("StepFun ASR事件: {}", type);
+                } else {
+                    log.info("StepFun ASR增量文本: {}", getString(node, "delta"));
+                }
 
                 if ("session.created".equals(type)) {
                     sendSessionUpdate();

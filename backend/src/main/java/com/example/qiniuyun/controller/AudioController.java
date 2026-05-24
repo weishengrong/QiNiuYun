@@ -1,4 +1,4 @@
-﻿package com.example.qiniuyun.controller;
+package com.example.qiniuyun.controller;
 
 import com.example.qiniuyun.model.dto.AsrResponse;
 import com.example.qiniuyun.model.entity.VoiceRecord;

@@ -1,4 +1,4 @@
-﻿package com.example.qiniuyun.model.vo;
+package com.example.qiniuyun.model.vo;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

@@ -1,4 +1,4 @@
-﻿spring:
+spring:
   application:
     name: qiniuyun-backend
 
@@ -9,8 +9,8 @@
 
   datasource:
     url: ${MYSQL_URL:jdbc:mysql://localhost:3306/voice_input?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai}
-    username: ${MYSQL_USERNAME:root}
-    password: ${MYSQL_PASSWORD:root}
+    username: root
+    password: ${MYSQL_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 mybatis:
@@ -23,7 +23,7 @@ audio:
   upload-dir: ${AUDIO_UPLOAD_DIR:./uploads/audio}
 
 vosk:
-  model-path: ${VOSK_MODEL_PATH:models/vosk-model-small-cn-0.22}
+  model-path: D:/Workspace/official_workspace/QiNiuYun_front_web/QiNiuYun_VoiceInput/models/vosk-model-small-cn-0.22
   sample-rate: 16000
 
 asr:
