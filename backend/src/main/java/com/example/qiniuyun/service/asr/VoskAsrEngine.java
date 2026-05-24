@@ -87,20 +87,23 @@ public class VoskAsrEngine implements AsrEngine {
             double squareSum = 0;
             int maxAbs = 0;
             StringBuilder textBuilder = new StringBuilder();
+            byte[] chunk = new byte[BUFFER_SIZE];
 
             while (offset < pcmData.length) {
                 int chunkSize = Math.min(BUFFER_SIZE, pcmData.length - offset);
                 if (chunkSize == 0) break;
 
+                System.arraycopy(pcmData, offset, chunk, 0, chunkSize);
+
                 totalBytes += chunkSize;
                 for (int i = 0; i + 1 < chunkSize; i += 2) {
-                    int sample = (short) ((pcmData[offset + i] & 0xff) | (pcmData[offset + i + 1] << 8));
+                    int sample = (short) ((chunk[i] & 0xff) | (chunk[i + 1] << 8));
                     int abs = Math.abs(sample);
                     maxAbs = Math.max(maxAbs, abs);
                     squareSum += (double) sample * sample;
                     sampleCount++;
                 }
-                if (recognizer.acceptWaveForm(pcmData, offset, chunkSize)) {
+                if (recognizer.acceptWaveForm(chunk, chunkSize)) {
                     appendRecognizedText(textBuilder, recognizer.getResult());
                 }
                 offset += chunkSize;
